@@ -1,4 +1,4 @@
-name: Build and Release ESP32 Firmware
+name: Build and Release ESP32 Firmware (PlatformIO)
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
       - 'esp32_firmware.ino'
       - 'version.txt'
       - '.github/workflows/build-and-release.yml'
-  workflow_dispatch:  # Allow manual triggering
+  workflow_dispatch:
 
 jobs:
   build:
@@ -17,185 +17,73 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Read version from file
-      id: version
+    - name: Read version
       run: |
         VERSION=$(cat version.txt | tr -d '[:space:]')
         echo "VERSION=${VERSION}" >> $GITHUB_ENV
         echo "TAG_NAME=v${VERSION}" >> $GITHUB_ENV
-        echo "Read version: ${VERSION}"
 
-    - name: Setup Arduino CLI (Correct Method)
-      run: |
-        # Download and install arduino-cli
-        curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=./arduino-cli sh
-        # Make it executable and add to PATH
-        chmod +x ./arduino-cli/arduino-cli
-        echo "$(pwd)/arduino-cli" >> $GITHUB_PATH
+    - name: Setup PlatformIO
+      uses: platformio/platformio-core-action@v1
+      with:
+        platform: espressif32
 
-    - name: Configure Arduino CLI and ESP32
+    - name: Update version in source code
       run: |
-        # Initialize config
-        ./arduino-cli/arduino-cli config init
-        
-        # Add ESP32 board URL
-        ./arduino-cli/arduino-cli config set board_manager.additional_urls https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
-        
-        # Update core index and install ESP32 platform
-        ./arduino-cli/arduino-cli core update-index
-        ./arduino-cli/arduino-cli core install esp32:esp32
-        
-        # List installed cores to verify
-        ./arduino-cli/arduino-cli core list
+        sed -i "s/const char\* currentFirmwareVersion = \".*\"/const char\* currentFirmwareVersion = \"$VERSION\"/" esp32_firmware.ino
 
-    - name: Update firmware version in source code
+    - name: Create PlatformIO project structure
       run: |
-        # Update the version in the source code
-        sed -i "s/const char\* currentFirmwareVersion = \".*\"/const char\* currentFirmwareVersion = \"${{ env.VERSION }}\"/" esp32_firmware.ino
-        echo "Updated firmware version to ${{ env.VERSION }}"
+        mkdir -p src
+        cp esp32_firmware.ino src/main.cpp
+        cat > platformio.ini << EOF
+        [env:esp32dev]
+        platform = espressif32
+        board = esp32dev
+        framework = arduino
+        upload_speed = 921600
+        monitor_speed = 115200
+        build_flags = 
+            -D ARDUINO_USB_MODE=1
+            -D ARDUINO_USB_CDC_ON_BOOT=1
+        EOF
 
-    - name: Compile ESP32 firmware
+    - name: Build with PlatformIO
       run: |
-        # Create build directory
-        mkdir -p build
-        
-        # Compile the sketch
-        ./arduino-cli/arduino-cli compile \
-          --fqbn esp32:esp32:esp32 \
-          --build-path ./build \
-          esp32_firmware.ino
-        
-        echo "Compilation completed"
+        pio run
 
-    - name: Verify and prepare binary
+    - name: Prepare artifacts
       run: |
-        # Check if binary was created
-        if [ -f "./build/esp32_firmware.ino.bin" ]; then
-          echo "✅ Firmware binary created successfully"
-          ls -lh ./build/esp32_firmware.ino.bin
-        else
-          echo "❌ ERROR: Firmware binary not found"
-          ls -la ./build/
-          exit 1
-        fi
-
-    - name: Create release artifacts
-      run: |
-        # Create artifacts directory
         mkdir -p artifacts
-        
-        # Copy and rename the binary
-        cp ./build/esp32_firmware.ino.bin ./artifacts/firmware.bin
-        
-        # Also create version-specific binary
-        cp ./build/esp32_firmware.ino.bin ./artifacts/firmware_${{ env.VERSION }}.bin
-        
-        # Copy version.txt
-        cp version.txt ./artifacts/
-        
-        # Create manifest with build info
-        echo "firmware_version=${{ env.VERSION }}" > ./artifacts/manifest.txt
-        echo "build_date=$(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> ./artifacts/manifest.txt
-        echo "build_id=${{ github.run_id }}" >> ./artifacts/manifest.txt
-        echo "commit_sha=${{ github.sha }}" >> ./artifacts/manifest.txt
-        echo "github_repo=${{ github.repository }}" >> ./artifacts/manifest.txt
-        
-        # List artifacts
-        echo "📦 Created artifacts:"
-        ls -la ./artifacts/
+        cp .pio/build/esp32dev/firmware.bin artifacts/firmware.bin
+        cp .pio/build/esp32dev/firmware.bin artifacts/firmware_${VERSION}.bin
+        cp version.txt artifacts/
 
-    - name: Upload build artifacts
+    - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: firmware-v${{ env.VERSION }}
-        path: ./artifacts/
-        retention-days: 30
+        name: firmware-v${VERSION}
+        path: artifacts/
 
   release:
     needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-    
-    # Set permissions for release
     permissions:
       contents: write
-
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: Download build artifacts
+    - name: Download artifacts
       uses: actions/download-artifact@v4
       with:
         name: firmware-v${{ env.VERSION }}
-        path: ./artifacts/
 
-    - name: Read version and create release info
-      id: release_info
-      run: |
-        VERSION=$(cat version.txt | tr -d '[:space:]')
-        echo "version=${VERSION}" >> $GITHUB_OUTPUT
-        echo "tag=v${VERSION}" >> $GITHUB_OUTPUT
-        
-        # Get current date
-        echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
-        
-        # Create release body
-        cat > release_body.md << EOF
-        ## ESP32 Firmware v${VERSION}
-        
-        ### Automatic OTA Update Release
-        
-        **Features:**
-        - ✅ Auto-detects new versions every 2 minutes
-        - ✅ Downloads and installs updates automatically
-        - ✅ Safe OTA process with verification
-        - ✅ Version tracking in flash memory
-        
-        **Update Process:**
-        1. ESP32 checks version.txt on GitHub
-        2. If new version found, downloads firmware.bin
-        3. Validates and installs update
-        4. Auto-reboots with new firmware
-        
-        **Assets included:**
-        - \`firmware.bin\` - Main binary for OTA updates
-        - \`firmware_${VERSION}.bin\` - Version-specific binary
-        - \`manifest.txt\` - Build information
-        
-        **Manual flashing (if needed):**
-        \`\`\`bash
-        esptool.py --chip esp32 --port /dev/ttyUSB0 \
-          --baud 921600 write_flash 0x10000 firmware.bin
-        \`\`\`
-        
-        **Build Information:**
-        - Build ID: ${{ github.run_id }}
-        - Commit: ${{ github.sha }}
-        - Built on: $(date -u +'%Y-%m-%d %H:%M:%S UTC')
-        
-        ---
-        *This is an automated release from GitHub Actions.*
-        EOF
-
-    - name: Create GitHub Release
+    - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: v${{ steps.release_info.outputs.version }}
-        name: "ESP32 Firmware v${{ steps.release_info.outputs.version }}"
-        body_path: release_body.md
-        draft: false
-        prerelease: false
-        generate_release_notes: false
+        tag_name: ${{ env.TAG_NAME }}
+        name: "ESP32 Firmware v${{ env.VERSION }}"
         files: |
-          artifacts/firmware.bin
-          artifacts/firmware_${{ steps.release_info.outputs.version }}.bin
-          artifacts/version.txt
-          artifacts/manifest.txt
+          firmware.bin
+          firmware_${{ env.VERSION }}.bin
+          version.txt
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Verify release was created
-      run: |
-        echo "✅ Release v${{ steps.release_info.outputs.version }} created successfully"
-        echo "📎 Download URL: https://github.com/${{ github.repository }}/releases/download/v${{ steps.release_info.outputs.version }}/firmware.bin"
