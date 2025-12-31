@@ -10,52 +10,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # -----------------------------
-      # 1. Checkout repository
-      # -----------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # -----------------------------
-      # 2. Read firmware version
-      # -----------------------------
       - name: Read version.txt
         run: |
-          if [ ! -f version.txt ]; then
-            echo "❌ version.txt not found"
-            exit 1
-          fi
           VERSION=$(cat version.txt | tr -d ' \t\r\n')
-          if [ -z "$VERSION" ]; then
-            echo "❌ version.txt is empty"
-            exit 1
-          fi
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "Firmware version: $VERSION"
 
-      # -----------------------------
-      # 3. Install arduino-cli (FIXED)
-      # -----------------------------
       - name: Install arduino-cli
         run: |
           curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
+          export PATH="$PWD/bin:$PATH"
           echo "$PWD/bin" >> $GITHUB_PATH
           arduino-cli version
 
-      # -----------------------------
-      # 4. Install ESP32 core
-      # -----------------------------
       - name: Install ESP32 Arduino core
         run: |
           arduino-cli config init
           arduino-cli core update-index
           arduino-cli core install esp32:esp32
-          arduino-cli core list
 
-      # -----------------------------
-      # 5. Compile firmware
-      # -----------------------------
-      - name: Compile ESP32 firmware
+      - name: Compile firmware
         run: |
           FQBN="esp32:esp32:esp32"
           arduino-cli compile \
@@ -63,34 +40,19 @@ jobs:
             --output-dir build \
             ./main
 
-          echo "Build directory content:"
           ls -la build
 
-      # -----------------------------
-      # 6. Rename firmware to firmware.bin
-      # -----------------------------
       - name: Prepare firmware.bin
         run: |
-          BIN_FILE=$(find build -name "*.bin" | head -n 1)
-          if [ -z "$BIN_FILE" ]; then
-            echo "❌ No .bin file found"
-            exit 1
-          fi
-          cp "$BIN_FILE" firmware.bin
-          echo "firmware.bin created"
+          BIN=$(find build -name "*.bin" | head -n 1)
+          cp "$BIN" firmware.bin
           ls -la firmware.bin
 
-      # -----------------------------
-      # 7. Create GitHub Release
-      # -----------------------------
       - name: Create GitHub Release
         uses: ncipollo/release-action@v1
         with:
           tag: v${{ env.VERSION }}
           name: ESP32 Firmware v${{ env.VERSION }}
-          body: |
-            Automated ESP32 firmware release.
-            Version: ${{ env.VERSION }}
           files: firmware.bin
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
