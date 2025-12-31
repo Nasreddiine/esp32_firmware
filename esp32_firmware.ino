@@ -1,6 +1,7 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <Update.h>
+#include <Preferences.h>
 
 // =====================
 // WiFi credentials
@@ -14,7 +15,7 @@ const char* password = "iinnpptt";
 const char* currentFirmwareVersion = "1.0.0";
 
 // =====================
-// GitHub URLs
+// GitHub URLs - Raw.githubusercontent.com supports HTTPS with regular HTTPClient
 // =====================
 const char* versionUrl = "https://raw.githubusercontent.com/Nasreddiine/esp32_firmware/main/version.txt";
 const char* firmwareBaseUrl = "https://github.com/Nasreddiine/esp32_firmware/releases/download/v";
@@ -26,10 +27,6 @@ const unsigned long checkInterval = 2 * 60 * 1000; // 2 minutes
 unsigned long lastCheckTime = 0;
 bool updateInProgress = false;
 
-// =====================
-// Preferences for storing version
-// =====================
-#include <Preferences.h>
 Preferences preferences;
 
 void setup() {
@@ -40,17 +37,12 @@ void setup() {
   Serial.println("ESP32 Auto-OTA Firmware System");
   Serial.println("=================================");
 
-  // Initialize preferences
   preferences.begin("firmware", false);
-  
-  // Read stored version (if any)
   String storedVersion = preferences.getString("version", "1.0.0");
   Serial.println("Stored version: " + storedVersion);
   Serial.println("Current version: " + String(currentFirmwareVersion));
 
   connectToWiFi();
-  
-  // Check for updates on startup
   checkForNewFirmware();
 }
 
@@ -69,7 +61,7 @@ void connectToWiFi() {
 
   int attempts = 0;
   while (WiFi.status() != WL_CONNECTED && attempts < 20) {
-    delay(1000);
+    delay(500);
     Serial.print(".");
     attempts++;
   }
@@ -84,9 +76,11 @@ void connectToWiFi() {
 
 void checkForNewFirmware() {
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("WiFi not connected, skipping version check");
     connectToWiFi();
-    return;
+    if (WiFi.status() != WL_CONNECTED) {
+      Serial.println("WiFi not connected, skipping version check");
+      return;
+    }
   }
 
   Serial.println("\n[OTA] Checking for new firmware...");
@@ -123,78 +117,82 @@ void performOTA(String newVersion) {
   
   Serial.println("[OTA] Starting firmware update to version: " + newVersion);
   
-  // Construct firmware download URL
+  // Use the releases API to get direct download link
   String firmwareUrl = String(firmwareBaseUrl) + newVersion + "/firmware.bin";
   Serial.println("[OTA] Download URL: " + firmwareUrl);
 
   HTTPClient http;
-  WiFiClientSecure client;
-  client.setInsecure(); // Skip certificate validation (for simplicity)
-  
-  http.begin(client, firmwareUrl);
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.setTimeout(30000);
+  http.setTimeout(60000); // Longer timeout for firmware download
   
   Serial.println("[OTA] Downloading firmware...");
+  http.begin(firmwareUrl);
+  
   int httpCode = http.GET();
   
   if (httpCode == HTTP_CODE_OK) {
     int contentLength = http.getSize();
+    if (contentLength <= 0) {
+      contentLength = http.getSize(); // Try again
+    }
+    
     Serial.printf("[OTA] Firmware size: %d bytes\n", contentLength);
     
     if (contentLength <= 0) {
-      Serial.println("[OTA] ERROR: Invalid content length");
+      Serial.println("[OTA] ERROR: Could not determine file size");
       updateInProgress = false;
       return;
     }
     
     // Begin OTA update
-    if (Update.begin(contentLength)) {
+    if (Update.begin(contentLength, U_FLASH)) {
       Serial.println("[OTA] Starting update process...");
       
-      // Create buffer for reading
-      uint8_t buff[128] = { 0 };
-      
-      // Get TCP stream
+      // Get the stream
       WiFiClient* stream = http.getStreamPtr();
       
-      // Read all data from server
+      // Create buffer
+      uint8_t buff[256] = { 0 };
       size_t written = 0;
+      int progress = 0;
+      
+      // Read all data
       while (http.connected() && (written < contentLength)) {
-        // Read up to 128 bytes
-        size_t size = stream->available();
-        
-        if (size) {
-          int c = stream->readBytes(buff, ((size > sizeof(buff)) ? sizeof(buff) : size));
+        int available = stream->available();
+        if (available > 0) {
+          int toRead = min(available, (int)sizeof(buff));
+          int c = stream->readBytes(buff, toRead);
           
-          // Write to OTA
-          Update.write(buff, c);
+          if (Update.write(buff, c) != c) {
+            Serial.println("[OTA] ERROR: Write failed");
+            break;
+          }
+          
           written += c;
           
-          // Progress indicator
-          if (written % 4096 == 0) {
-            Serial.printf("[OTA] Progress: %d%%\n", (written * 100) / contentLength);
+          // Show progress every 10%
+          int newProgress = (written * 100) / contentLength;
+          if (newProgress >= progress + 10) {
+            progress = newProgress;
+            Serial.printf("[OTA] Progress: %d%%\n", progress);
           }
         }
         delay(1);
       }
       
-      if (Update.end()) {
+      if (Update.end(true)) { // true to set the update as valid
         Serial.println("[OTA] Update completed successfully");
         
-        if (Update.isFinished()) {
-          // Store new version in preferences
-          preferences.putString("version", newVersion);
-          preferences.end();
-          
-          Serial.println("[OTA] Restarting ESP32 with new firmware...");
-          delay(1000);
-          ESP.restart();
-        } else {
-          Serial.println("[OTA] ERROR: Update not finished");
-        }
+        // Store new version
+        preferences.putString("version", newVersion);
+        preferences.end();
+        
+        Serial.println("[OTA] Firmware updated successfully!");
+        Serial.println("[OTA] Restarting in 3 seconds...");
+        delay(3000);
+        ESP.restart();
       } else {
-        Serial.printf("[OTA] ERROR: Update failed: %s\n", Update.errorString());
+        Serial.print("[OTA] ERROR: Update failed: ");
         Update.printError(Serial);
       }
     } else {
@@ -206,5 +204,5 @@ void performOTA(String newVersion) {
   
   http.end();
   updateInProgress = false;
-  Serial.println("[OTA] Update process ended");
+  Serial.println("[OTA] Update process completed");
 }
