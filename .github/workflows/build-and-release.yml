@@ -32,14 +32,13 @@ jobs:
       - name: Setup Arduino CLI
         uses: arduino/setup-arduino-cli@v1
 
-      # 4. Install ESP32 platform and libraries (FIXED - using correct library names)
+      # 4. Install ESP32 platform and libraries
       - name: Install ESP32 platform
         run: |
           arduino-cli config init
           arduino-cli config set board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
           arduino-cli core update-index
           arduino-cli core install esp32:esp32
-          # Install required libraries with correct names
           arduino-cli lib install "WiFi"
           arduino-cli lib install "HTTPClient"
           arduino-cli lib install "Preferences"
@@ -48,9 +47,8 @@ jobs:
       - name: Update firmware version in code
         run: |
           # Update the version in the firmware code
-          sed -i "s/const char\* currentFirmwareVersion = \".*\"/const char\* currentFirmwareVersion = \"${{ env.VERSION }}\"/" esp32_firmware.ino
-          echo "Updated firmware version to ${{ env.VERSION }}"
-          echo "Updated line:"
+          sed -i "s/const char\* currentFirmwareVersion = \".*\"/const char\* currentFirmwareVersion = \"$VERSION\"/" esp32_firmware.ino
+          echo "Updated firmware version to $VERSION"
           grep "currentFirmwareVersion" esp32_firmware.ino
 
       # 6. Compile firmware
@@ -61,7 +59,7 @@ jobs:
           arduino-cli compile --fqbn esp32:esp32:esp32 --output-dir ./build esp32_firmware.ino
           echo "Compilation completed!"
 
-      # 7. Prepare release files
+      # 7. Prepare release files (FIXED HEREDOC)
       - name: Prepare release
         run: |
           # Check if binary was created
@@ -71,15 +69,15 @@ jobs:
             ls -lh firmware.bin
             
             # Create a simple README for the release
-            cat > README_release.md << EOF
-            # ESP32 Firmware v${{ env.VERSION }}
+            cat > README_release.md << 'EOF'
+            # ESP32 Firmware v$VERSION
             
             ## Manual Installation
             Flash using esptool:
-            \`\`\`bash
+            ```
             esptool.py --chip esp32 --port COM6 \
               --baud 921600 write_flash 0x10000 firmware.bin
-            \`\`\`
+            ```
             
             ## Auto-OTA Features
             - WiFi: INPT-Test
@@ -99,6 +97,8 @@ jobs:
       # 8. Create GitHub Release
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ env.TAG_NAME }}
           name: "ESP32 Firmware v${{ env.VERSION }}"
@@ -140,8 +140,6 @@ jobs:
             firmware.bin
             version.txt
             README_release.md
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # 9. Create/Update latest tag for OTA
       - name: Update latest tag
