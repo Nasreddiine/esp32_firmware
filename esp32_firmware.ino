@@ -1,12 +1,13 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
-#include <Update.h>
+#include <HTTPUpdate.h>
 #include <Preferences.h>
+#include <WiFiClientSecure.h>
 
 // =====================
-// WiFi credentials
+// WiFi credentials - UPDATED
 // =====================
-const char* ssid = "Residence1-Etage1";
+const char* ssid = "INPT-Test";
 const char* password = "iinnpptt";
 
 // =====================
@@ -15,10 +16,37 @@ const char* password = "iinnpptt";
 const char* currentFirmwareVersion = "1.0.0";
 
 // =====================
-// GitHub URLs - Raw.githubusercontent.com supports HTTPS with regular HTTPClient
+// GitHub URLs
 // =====================
 const char* versionUrl = "https://raw.githubusercontent.com/Nasreddiine/esp32_firmware/main/version.txt";
-const char* firmwareBaseUrl = "https://github.com/Nasreddiine/esp32_firmware/releases/download/v";
+const char* firmwareUrl = "https://github.com/Nasreddiine/esp32_firmware/releases/download/latest/firmware.bin";
+
+// =====================
+// GitHub Root Certificate (valid until 2031)
+// =====================
+const char* githubRootCACertificate = R"(
+-----BEGIN CERTIFICATE-----
+MIIFazCCA1OgAwIBAgIRAIIQz7DSQONZRGPgu2OCiwAwDQYJKoZIhvcNAQELBQAw
+TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh
+cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMTUwNjA0MTEwNDM4
+WhcNMzUwNjA0MTEwNDM4WjBPMQswCQYDVQQGEwJVUzEpMCcGA1UEChMgSW50ZXJu
+ZXQgU2VjdXJpdHkgUmVzZWFyY2ggR3JvdXAxFTATBgNVBAMTDElTUkcgUm9vdCBY
+MTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAK3oJHP0FDfzm54rVygc
+h77ct984kIxuPOZXoHj3dcKi/vVqbvYATyjb3miGbESTtrFj/RQSa78f0uoxmyF+
+0TM8ukj13Xnfs7j/EvEhmkvBioZxaUpmZmyPfjxwv60pIgbz5MDmgK7iS4+3mX6U
+A5/TR5d8mUgjU+g4rk8Kb4Mu0UlXjIB0ttov0DiNewNwIRt18jA8+o+u3dpjq+sW
+T8KOEUt+zwvo/7V3LvSye0rgTBIlDHCNAymg4VMk7BPZ7hm/ELNKjD+Jo2FR3qyH
+B5T0Y3HsLuJvW5iB4YlcNHlsdu87kGJ55tukmi8mxdAQ4Q7e2RCOFvu396j3x+UC
+B5iPNgiV5+I3lg02dZ77DnKxHZu8A/lJBdiB3QW0KtZB6awBdpUKD9jf1b0SHzUv
+KBds0pjBqAlkd25HN7rOrFleaJ1/ctaJxQZBKT5ZPt0m9STGadaX0ZdAsSvG4Lxw
+9qTRkXv1IbzLxU0XZspN7qQaGc6L2RlZcFZl+5K7b5I1Q8K7Y5U5L5Uwv0Zg1Mp
+lFfG6raB8p6N7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dD
+nVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnV
+k5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5
+L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2
+k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6
+-----END CERTIFICATE-----
+)";
 
 // =====================
 // Timing
@@ -28,6 +56,7 @@ unsigned long lastCheckTime = 0;
 bool updateInProgress = false;
 
 Preferences preferences;
+WiFiClientSecure client;
 
 void setup() {
   Serial.begin(115200);
@@ -36,6 +65,9 @@ void setup() {
   Serial.println("\n=================================");
   Serial.println("ESP32 Auto-OTA Firmware System");
   Serial.println("=================================");
+
+  // Set root certificate for GitHub
+  client.setCACert(githubRootCACertificate);
 
   preferences.begin("firmware", false);
   String storedVersion = preferences.getString("version", "1.0.0");
@@ -56,22 +88,62 @@ void loop() {
 void connectToWiFi() {
   if (WiFi.status() == WL_CONNECTED) return;
   
-  Serial.print("Connecting to WiFi");
+  Serial.println("Connecting to WiFi: INPT-Test");
   WiFi.begin(ssid, password);
 
   int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+  while (WiFi.status() != WL_CONNECTED && attempts < 30) {
     delay(500);
     Serial.print(".");
     attempts++;
   }
 
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\nWiFi connected");
+    Serial.println("\n✅ WiFi connected to INPT-Test");
     Serial.println("IP address: " + WiFi.localIP().toString());
   } else {
-    Serial.println("\nWiFi connection failed");
+    Serial.println("\n❌ WiFi connection failed to INPT-Test");
   }
+}
+
+String checkVersionFromGitHub() {
+  if (!client.connect("raw.githubusercontent.com", 443)) {
+    Serial.println("[OTA] Connection to version server failed");
+    return "";
+  }
+
+  String request = String("GET ") + "/Nasreddiine/esp32_firmware/main/version.txt HTTP/1.1\r\n" +
+                  "Host: raw.githubusercontent.com\r\n" +
+                  "Connection: close\r\n\r\n";
+  
+  client.print(request);
+
+  // Wait for response
+  unsigned long timeout = millis();
+  while (client.available() == 0) {
+    if (millis() - timeout > 10000) {
+      Serial.println("[OTA] Version check timeout");
+      client.stop();
+      return "";
+    }
+  }
+
+  // Read response
+  String response = "";
+  while (client.available()) {
+    response += client.readStringUntil('\n');
+  }
+
+  client.stop();
+
+  // Extract version from response
+  int bodyStart = response.indexOf("\r\n\r\n");
+  if (bodyStart == -1) return "";
+  
+  String version = response.substring(bodyStart + 4);
+  version.trim();
+  
+  return version;
 }
 
 void checkForNewFirmware() {
@@ -84,18 +156,10 @@ void checkForNewFirmware() {
   }
 
   Serial.println("\n[OTA] Checking for new firmware...");
-
-  HTTPClient http;
-  http.begin(versionUrl);
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.setTimeout(10000);
   
-  int httpCode = http.GET();
-
-  if (httpCode == HTTP_CODE_OK) {
-    String latestVersion = http.getString();
-    latestVersion.trim();
-
+  String latestVersion = checkVersionFromGitHub();
+  
+  if (latestVersion.length() > 0) {
     Serial.println("[OTA] Current version: " + String(currentFirmwareVersion));
     Serial.println("[OTA] Latest version : " + latestVersion);
 
@@ -106,103 +170,41 @@ void checkForNewFirmware() {
       Serial.println("[OTA] Firmware is up to date");
     }
   } else {
-    Serial.printf("[OTA] Version check failed (HTTP %d)\n", httpCode);
+    Serial.println("[OTA] Version check failed");
   }
-
-  http.end();
 }
 
 void performOTA(String newVersion) {
   updateInProgress = true;
   
   Serial.println("[OTA] Starting firmware update to version: " + newVersion);
-  
-  // Use the releases API to get direct download link
-  String firmwareUrl = String(firmwareBaseUrl) + newVersion + "/firmware.bin";
-  Serial.println("[OTA] Download URL: " + firmwareUrl);
+  Serial.println("[OTA] Download URL: " + String(firmwareUrl));
 
-  HTTPClient http;
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.setTimeout(60000); // Longer timeout for firmware download
+  t_httpUpdate_return ret = httpUpdate.update(client, firmwareUrl);
   
-  Serial.println("[OTA] Downloading firmware...");
-  http.begin(firmwareUrl);
-  
-  int httpCode = http.GET();
-  
-  if (httpCode == HTTP_CODE_OK) {
-    int contentLength = http.getSize();
-    if (contentLength <= 0) {
-      contentLength = http.getSize(); // Try again
-    }
-    
-    Serial.printf("[OTA] Firmware size: %d bytes\n", contentLength);
-    
-    if (contentLength <= 0) {
-      Serial.println("[OTA] ERROR: Could not determine file size");
-      updateInProgress = false;
-      return;
-    }
-    
-    // Begin OTA update
-    if (Update.begin(contentLength, U_FLASH)) {
-      Serial.println("[OTA] Starting update process...");
+  switch (ret) {
+    case HTTP_UPDATE_FAILED:
+      Serial.printf("[OTA] Update failed. Error (%d): %s\n",
+                    httpUpdate.getLastError(),
+                    httpUpdate.getLastErrorString().c_str());
+      break;
       
-      // Get the stream
-      WiFiClient* stream = http.getStreamPtr();
+    case HTTP_UPDATE_NO_UPDATES:
+      Serial.println("[OTA] No updates available");
+      break;
       
-      // Create buffer
-      uint8_t buff[256] = { 0 };
-      size_t written = 0;
-      int progress = 0;
+    case HTTP_UPDATE_OK:
+      Serial.println("[OTA] Update completed successfully");
       
-      // Read all data
-      while (http.connected() && (written < contentLength)) {
-        int available = stream->available();
-        if (available > 0) {
-          int toRead = min(available, (int)sizeof(buff));
-          int c = stream->readBytes(buff, toRead);
-          
-          if (Update.write(buff, c) != c) {
-            Serial.println("[OTA] ERROR: Write failed");
-            break;
-          }
-          
-          written += c;
-          
-          // Show progress every 10%
-          int newProgress = (written * 100) / contentLength;
-          if (newProgress >= progress + 10) {
-            progress = newProgress;
-            Serial.printf("[OTA] Progress: %d%%\n", progress);
-          }
-        }
-        delay(1);
-      }
+      // Store new version before restart
+      preferences.putString("version", newVersion);
+      preferences.end();
       
-      if (Update.end(true)) { // true to set the update as valid
-        Serial.println("[OTA] Update completed successfully");
-        
-        // Store new version
-        preferences.putString("version", newVersion);
-        preferences.end();
-        
-        Serial.println("[OTA] Firmware updated successfully!");
-        Serial.println("[OTA] Restarting in 3 seconds...");
-        delay(3000);
-        ESP.restart();
-      } else {
-        Serial.print("[OTA] ERROR: Update failed: ");
-        Update.printError(Serial);
-      }
-    } else {
-      Serial.println("[OTA] ERROR: Not enough space for OTA");
-    }
-  } else {
-    Serial.printf("[OTA] ERROR: Download failed (HTTP %d)\n", httpCode);
+      Serial.println("[OTA] Firmware updated successfully!");
+      Serial.println("[OTA] Restarting...");
+      ESP.restart();
+      break;
   }
   
-  http.end();
   updateInProgress = false;
-  Serial.println("[OTA] Update process completed");
 }
