@@ -65,11 +65,10 @@ jobs:
             
             WiFi: INPT-Test
             Auto-updates every 2 minutes
+            
+            **OTA URL:** https://github.com/Nasreddiine/esp32_firmware/releases/download/v${{ env.VERSION }}/firmware.bin
+          draft: false
+          prerelease: false
           files: |
             firmware.bin
             version.txt
-
-      - name: Update latest tag
-        run: |
-          git tag -f latest
-          git push origin latest -f
