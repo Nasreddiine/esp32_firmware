@@ -59,6 +59,7 @@ void setup() {
   Serial.println("ESP32 Auto-OTA Firmware System");
   Serial.println("=================================");
   Serial.println("Version: " + String(currentFirmwareVersion));
+  Serial.println("Build Date: " __DATE__ " " __TIME__);  // ADD THIS LINE
 
   // Set root certificate for GitHub
   client.setCACert(rootCACertificate);
