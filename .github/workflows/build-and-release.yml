@@ -57,25 +57,35 @@ jobs:
           git push origin main
 
       # -----------------------------
-      # 3. Install arduino-cli
+      # 3. Install arduino-cli (CORRECTED)
       # -----------------------------
       - name: Install arduino-cli
         run: |
-          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
-          echo "$HOME/bin" >> $GITHUB_PATH
-
+          # Create directory
+          mkdir -p ~/arduino-cli
+          
+          # Download and install arduino-cli
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | BINDIR=~/arduino-cli sh
+          
+          # Verify installation
+          ~/arduino-cli/arduino-cli version
+          
+          # Create symbolic link or add to PATH
+          echo "ARDUINO_CLI_PATH=$HOME/arduino-cli/arduino-cli" >> $GITHUB_ENV
+          
       # -----------------------------
       # 4. Setup ESP32 platform
       # -----------------------------
       - name: Setup ESP32 platform
         run: |
-          arduino-cli config init
-          arduino-cli config set board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
-          arduino-cli core update-index
-          arduino-cli core install esp32:esp32
-          arduino-cli lib install "Preferences"
-          arduino-cli lib install "HTTPClient"
-          arduino-cli lib install "WiFi"
+          # Use full path to arduino-cli
+          ${{ env.ARDUINO_CLI_PATH }} config init
+          ${{ env.ARDUINO_CLI_PATH }} config set board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          ${{ env.ARDUINO_CLI_PATH }} core update-index
+          ${{ env.ARDUINO_CLI_PATH }} core install esp32:esp32
+          ${{ env.ARDUINO_CLI_PATH }} lib install "Preferences"
+          ${{ env.ARDUINO_CLI_PATH }} lib install "WiFi"
+          ${{ env.ARDUINO_CLI_PATH }} lib install "HTTPClient"
 
       # -----------------------------
       # 5. Update firmware version in code
@@ -97,7 +107,7 @@ jobs:
           mkdir -p build
           
           # Compile with specific flash mode and size
-          arduino-cli compile \
+          ${{ env.ARDUINO_CLI_PATH }} compile \
             --fqbn esp32:esp32:esp32 \
             --build-property "compiler.cpp.extra_flags=-DAPP_VERSION=\\\"${{ env.VERSION }}\\\"" \
             --export-binaries \
