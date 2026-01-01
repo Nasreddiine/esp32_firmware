@@ -152,67 +152,87 @@ void checkForNewFirmware() {
 
 void performOTA(String newVersion) {
   Serial.println("[OTA] Starting firmware update to version: " + newVersion);
-  Serial.println("[OTA] Download URL: " + String(firmwareUrl));
+  
+  // Build firmware URL with specific version (NOT "latest")
+  String firmwareUrl = "https://github.com/Nasreddiine/esp32_firmware/releases/download/v" + newVersion + "/firmware.bin";
+  Serial.println("[OTA] Download URL: " + firmwareUrl);
 
   HTTPClient http;
+  
+  // Try without certificate first (for debugging)
+  Serial.println("[OTA] Trying without certificate verification...");
+  WiFiClientSecure client;
+  client.setInsecure(); // Skip certificate verification for now
+  
   http.begin(client, firmwareUrl);
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.setTimeout(30000);
   
   int httpCode = http.GET();
+  Serial.printf("[OTA] HTTP Response: %d\n", httpCode);
   
   if (httpCode == HTTP_CODE_OK) {
     int contentLength = http.getSize();
     Serial.printf("[OTA] Firmware size: %d bytes\n", contentLength);
     
-    if (Update.begin(contentLength)) {
-      Serial.println("[OTA] Starting update process...");
+    if (contentLength > 0) {
+      Serial.println("[OTA] Starting update...");
       
-      WiFiClient* stream = http.getStreamPtr();
-      uint8_t buffer[256];
-      size_t written = 0;
-      
-      while (http.connected() && (written < contentLength)) {
-        size_t available = stream->available();
-        if (available > 0) {
-          int toRead = min(available, sizeof(buffer));
-          int bytesRead = stream->readBytes(buffer, toRead);
-          
-          if (Update.write(buffer, bytesRead) != bytesRead) {
-            Serial.println("[OTA] ERROR: Write failed");
-            break;
+      if (Update.begin(contentLength)) {
+        Serial.println("[OTA] Update begun successfully");
+        
+        WiFiClient* stream = http.getStreamPtr();
+        uint8_t buffer[512];
+        size_t written = 0;
+        
+        while (http.connected() && (written < contentLength)) {
+          size_t available = stream->available();
+          if (available > 0) {
+            int toRead = min(available, sizeof(buffer));
+            int bytesRead = stream->readBytes(buffer, toRead);
+            
+            if (Update.write(buffer, bytesRead) != bytesRead) {
+              Serial.println("[OTA] ERROR: Write failed!");
+              break;
+            }
+            
+            written += bytesRead;
+            
+            // Show progress every 10%
+            int progress = (written * 100) / contentLength;
+            static int lastProgress = 0;
+            if (progress >= lastProgress + 10) {
+              lastProgress = progress;
+              Serial.printf("[OTA] Progress: %d%%\n", progress);
+            }
           }
-          
-          written += bytesRead;
-          
-          // Show progress
-          if (written % 8192 == 0) {
-            Serial.printf("[OTA] Progress: %d/%d bytes\n", written, contentLength);
-          }
+          delay(1);
         }
-        delay(1);
-      }
-      
-      if (Update.end()) {
-        Serial.println("[OTA] Update completed successfully");
         
-        // Store new version
-        preferences.putString("version", newVersion);
-        preferences.end();
-        
-        Serial.println("[OTA] Firmware updated successfully!");
-        Serial.println("[OTA] Restarting in 3 seconds...");
-        delay(3000);
-        ESP.restart();
+        if (Update.end()) {
+          Serial.println("[OTA] Update completed!");
+          
+          // Store new version
+          preferences.putString("version", newVersion);
+          preferences.end();
+          
+          Serial.println("[OTA] Firmware updated successfully!");
+          Serial.println("[OTA] Restarting in 5 seconds...");
+          delay(5000);
+          ESP.restart();
+        } else {
+          Serial.println("[OTA] ERROR: Update.end() failed!");
+          Update.printError(Serial);
+        }
       } else {
-        Serial.print("[OTA] ERROR: Update failed: ");
+        Serial.println("[OTA] ERROR: Not enough space for OTA");
         Update.printError(Serial);
       }
     } else {
-      Serial.println("[OTA] ERROR: Not enough space for OTA");
+      Serial.println("[OTA] ERROR: Invalid content length");
     }
   } else {
-    Serial.printf("[OTA] ERROR: Download failed (HTTP %d)\n", httpCode);
+    Serial.printf("[OTA] ERROR: Download failed with HTTP %d\n", httpCode);
   }
   
   http.end();
