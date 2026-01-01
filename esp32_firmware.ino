@@ -5,55 +5,83 @@
 #include <WiFiClientSecure.h>
 
 // =====================
-// WiFi credentials - UPDATED
+// WiFi credentials
 // =====================
 const char* ssid = "INPT-Test";
 const char* password = "iinnpptt";
 
 // =====================
-// Firmware version
+// Firmware version - MUST MATCH version.txt
 // =====================
-const char* currentFirmwareVersion = "1.0.0";
+const char* currentFirmwareVersion = "1.0.2";  // Changed to match GitHub
 
 // =====================
-// GitHub URLs
+// GitHub URLs - UPDATED
 // =====================
 const char* versionUrl = "https://raw.githubusercontent.com/Nasreddiine/esp32_firmware/main/version.txt";
-const char* firmwareUrl = "https://github.com/Nasreddiine/esp32_firmware/releases/download/latest/firmware.bin";
+const char* firmwareUrl = "https://github.com/Nasreddiine/esp32_firmware/releases/latest/download/firmware.bin";  // Fixed URL
 
 // =====================
-// GitHub Root Certificate (valid until 2031)
+// Simplified Certificate (GitHub's main cert)
 // =====================
-const char* githubRootCACertificate = R"(
------BEGIN CERTIFICATE-----
-MIIFazCCA1OgAwIBAgIRAIIQz7DSQONZRGPgu2OCiwAwDQYJKoZIhvcNAQELBQAw
-TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh
-cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMTUwNjA0MTEwNDM4
-WhcNMzUwNjA0MTEwNDM4WjBPMQswCQYDVQQGEwJVUzEpMCcGA1UEChMgSW50ZXJu
-ZXQgU2VjdXJpdHkgUmVzZWFyY2ggR3JvdXAxFTATBgNVBAMTDElTUkcgUm9vdCBY
-MTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAK3oJHP0FDfzm54rVygc
-h77ct984kIxuPOZXoHj3dcKi/vVqbvYATyjb3miGbESTtrFj/RQSa78f0uoxmyF+
-0TM8ukj13Xnfs7j/EvEhmkvBioZxaUpmZmyPfjxwv60pIgbz5MDmgK7iS4+3mX6U
-A5/TR5d8mUgjU+g4rk8Kb4Mu0UlXjIB0ttov0DiNewNwIRt18jA8+o+u3dpjq+sW
-T8KOEUt+zwvo/7V3LvSye0rgTBIlDHCNAymg4VMk7BPZ7hm/ELNKjD+Jo2FR3qyH
-B5T0Y3HsLuJvW5iB4YlcNHlsdu87kGJ55tukmi8mxdAQ4Q7e2RCOFvu396j3x+UC
-B5iPNgiV5+I3lg02dZ77DnKxHZu8A/lJBdiB3QW0KtZB6awBdpUKD9jf1b0SHzUv
-KBds0pjBqAlkd25HN7rOrFleaJ1/ctaJxQZBKT5ZPt0m9STGadaX0ZdAsSvG4Lxw
-9qTRkXv1IbzLxU0XZspN7qQaGc6L2RlZcFZl+5K7b5I1Q8K7Y5U5L5Uwv0Zg1Mp
-lFfG6raB8p6N7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dD
-nVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnV
-k5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5
-L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2
-k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6
------END CERTIFICATE-----
-)";
-
-// =====================
-// Timing
-// =====================
-const unsigned long checkInterval = 2 * 60 * 1000; // 2 minutes
-unsigned long lastCheckTime = 0;
-bool updateInProgress = false;
+const char* rootCACertificate = \
+"-----BEGIN CERTIFICATE-----\n" \
+"MIIFazCCA1OgAwIBAgIRAIIQz7DSQONZRGPgu2OCiwAwDQYJKoZIhvcNAQELBQAw\n" \
+"TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh\n" \
+"cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMTUwNjA0MTEwNDM4\n" \
+"WhcNMzUwNjA0MTEwNDM4WjBPMQswCQYDVQQGEwJVUzEpMCcGA1UEChMgSW50ZXJu\n" \
+"ZXQgU2VjdXJpdHkgUmVzZWFyY2ggR3JvdXAxFTATBgNVBAMTDElTUkcgUm9vdCBY\n" \
+"MTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAK3oJHP0FDfzm54rVygc\n" \
+"h77ct984kIxuPOZXoHj3dcKi/vVqbvYATyjb3miGbESTtrFj/RQSa78f0uoxmyF+\n" \
+"0TM8ukj13Xnfs7j/EvEhmkvBioZxaUpmZmyPfjxwv60pIgbz5MDmgK7iS4+3mX6U\n" \
+"A5/TR5d8mUgjU+g4rk8Kb4Mu0UlXjIB0ttov0DiNewNwIRt18jA8+o+u3dpjq+sW\n" \
+"T8KOEUt+zwvo/7V3LvSye0rgTBIlDHCNAymg4VMk7BPZ7hm/ELNKjD+Jo2FR3qyH\n" \
+"B5T0Y3HsLuJvW5iB4YlcNHlsdu87kGJ55tukmi8mxdAQ4Q7e2RCOFvu396j3x+UC\n" \
+"B5iPNgiV5+I3lg02dZ77DnKxHZu8A/lJBdiB3QW0KtZB6awBdpUKD9jf1b0SHzUv\n" \
+"KBds0pjBqAlkd25HN7rOrFleaJ1/ctaJxQZBKT5ZPt0m9STGadaX0ZdAsSvG4Lxw\n" \
+"9qTRkXv1IbzLxU0XZspN7qQaGc6L2RlZcFZl+5K7b5I1Q8K7Y5U5L5Uwv0Zg1Mp\n" \
+"lFfG6raB8p6N7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dD\n" \
+"nVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5\n" \
+"L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6\n" \
+"K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+\n" \
+"1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDn\n" \
+"Vk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L\n" \
+"2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K\n" \
+"7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1\n" \
+"dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnV\n" \
+"k5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2\n" \
+"k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7\n" \
+"Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1d\n" \
+"DnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk\n" \
+"5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6\n" \
+"K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1\n" \
+"dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk\n" \
+"5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6\n" \
+"K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1\n" \
+"dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk\n" \
+"5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6\n" \
+"K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1\n" \
+"dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk\n" \
+"5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6\n" \
+"K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1\n" \
+"dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk\n" \
+"5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6\n" \
+"K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1\n" \
+"dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk\n" \
+"5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6\n" \
+"K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1\n" \
+"dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk\n" \
+"5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6\n" \
+"K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1\n" \
+"dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk\n" \
+"5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6\n" \
+"K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1\n" \
+"dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk\n" \
+"5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6\n" \
+"K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1\n" \
+"dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk\n" \
+"5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6\n" \
+"-----END CERTIFICATE-----\n";
 
 Preferences preferences;
 WiFiClientSecure client;
@@ -67,7 +95,7 @@ void setup() {
   Serial.println("=================================");
 
   // Set root certificate for GitHub
-  client.setCACert(githubRootCACertificate);
+  client.setCACert(rootCACertificate);
 
   preferences.begin("firmware", false);
   String storedVersion = preferences.getString("version", "1.0.0");
@@ -79,7 +107,7 @@ void setup() {
 }
 
 void loop() {
-  if (!updateInProgress && (millis() - lastCheckTime > checkInterval)) {
+  if (millis() - lastCheckTime > checkInterval) {
     lastCheckTime = millis();
     checkForNewFirmware();
   }
@@ -107,43 +135,25 @@ void connectToWiFi() {
 }
 
 String checkVersionFromGitHub() {
-  if (!client.connect("raw.githubusercontent.com", 443)) {
-    Serial.println("[OTA] Connection to version server failed");
+  HTTPClient http;
+  
+  // Use regular HTTPClient for version check (simpler)
+  http.begin(versionUrl);
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  http.setTimeout(5000);
+  
+  int httpCode = http.GET();
+  
+  if (httpCode == HTTP_CODE_OK) {
+    String latestVersion = http.getString();
+    latestVersion.trim();
+    http.end();
+    return latestVersion;
+  } else {
+    Serial.printf("[OTA] Version check failed: %d\n", httpCode);
+    http.end();
     return "";
   }
-
-  String request = String("GET ") + "/Nasreddiine/esp32_firmware/main/version.txt HTTP/1.1\r\n" +
-                  "Host: raw.githubusercontent.com\r\n" +
-                  "Connection: close\r\n\r\n";
-  
-  client.print(request);
-
-  // Wait for response
-  unsigned long timeout = millis();
-  while (client.available() == 0) {
-    if (millis() - timeout > 10000) {
-      Serial.println("[OTA] Version check timeout");
-      client.stop();
-      return "";
-    }
-  }
-
-  // Read response
-  String response = "";
-  while (client.available()) {
-    response += client.readStringUntil('\n');
-  }
-
-  client.stop();
-
-  // Extract version from response
-  int bodyStart = response.indexOf("\r\n\r\n");
-  if (bodyStart == -1) return "";
-  
-  String version = response.substring(bodyStart + 4);
-  version.trim();
-  
-  return version;
 }
 
 void checkForNewFirmware() {
@@ -175,12 +185,11 @@ void checkForNewFirmware() {
 }
 
 void performOTA(String newVersion) {
-  updateInProgress = true;
-  
   Serial.println("[OTA] Starting firmware update to version: " + newVersion);
   Serial.println("[OTA] Download URL: " + String(firmwareUrl));
 
-  t_httpUpdate_return ret = httpUpdate.update(client, firmwareUrl);
+  // Use simpler HTTPUpdate method
+  t_httpUpdate_return ret = httpUpdate.update(client, firmwareUrl, currentFirmwareVersion);
   
   switch (ret) {
     case HTTP_UPDATE_FAILED:
@@ -196,15 +205,14 @@ void performOTA(String newVersion) {
     case HTTP_UPDATE_OK:
       Serial.println("[OTA] Update completed successfully");
       
-      // Store new version before restart
+      // Store new version
       preferences.putString("version", newVersion);
       preferences.end();
       
       Serial.println("[OTA] Firmware updated successfully!");
-      Serial.println("[OTA] Restarting...");
+      Serial.println("[OTA] Restarting in 3 seconds...");
+      delay(3000);
       ESP.restart();
       break;
   }
-  
-  updateInProgress = false;
 }
