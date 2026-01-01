@@ -1,6 +1,6 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
-#include <HTTPUpdate.h>
+#include <Update.h>
 #include <Preferences.h>
 #include <WiFiClientSecure.h>
 
@@ -11,18 +11,18 @@ const char* ssid = "INPT-Test";
 const char* password = "iinnpptt";
 
 // =====================
-// Firmware version - MUST MATCH version.txt
+// Firmware version - MUST be 1.0.0 for initial release
 // =====================
-const char* currentFirmwareVersion = "1.0.2";  // Changed to match GitHub
+const char* currentFirmwareVersion = "1.0.0";
 
 // =====================
-// GitHub URLs - UPDATED
+// GitHub URLs
 // =====================
 const char* versionUrl = "https://raw.githubusercontent.com/Nasreddiine/esp32_firmware/main/version.txt";
-const char* firmwareUrl = "https://github.com/Nasreddiine/esp32_firmware/releases/latest/download/firmware.bin";  // Fixed URL
+const char* firmwareUrl = "https://github.com/Nasreddiine/esp32_firmware/releases/latest/download/firmware.bin";
 
 // =====================
-// Simplified Certificate (GitHub's main cert)
+// GitHub Root Certificate
 // =====================
 const char* rootCACertificate = \
 "-----BEGIN CERTIFICATE-----\n" \
@@ -43,48 +43,13 @@ const char* rootCACertificate = \
 "lFfG6raB8p6N7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dD\n" \
 "nVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5\n" \
 "L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6\n" \
-"K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+\n" \
-"1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDn\n" \
-"Vk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L\n" \
-"2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K\n" \
-"7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1\n" \
-"dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnV\n" \
-"k5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2\n" \
-"k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7\n" \
-"Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1d\n" \
-"DnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk\n" \
-"5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6\n" \
-"K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1\n" \
-"dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk\n" \
-"5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6\n" \
-"K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1\n" \
-"dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk\n" \
-"5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6\n" \
-"K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1\n" \
-"dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk\n" \
-"5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6\n" \
-"K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1\n" \
-"dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk\n" \
-"5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6\n" \
-"K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1\n" \
-"dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk\n" \
-"5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6\n" \
-"K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1\n" \
-"dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk\n" \
-"5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6\n" \
-"K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1\n" \
-"dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk\n" \
-"5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6\n" \
-"K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1\n" \
-"dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk\n" \
-"5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6\n" \
-"K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1\n" \
-"dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk\n" \
-"5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6K7Q+1dDnVk5L2k6\n" \
 "-----END CERTIFICATE-----\n";
 
 Preferences preferences;
 WiFiClientSecure client;
+
+unsigned long lastCheckTime = 0;
+const unsigned long checkInterval = 2 * 60 * 1000; // 2 minutes
 
 void setup() {
   Serial.begin(115200);
@@ -93,6 +58,7 @@ void setup() {
   Serial.println("\n=================================");
   Serial.println("ESP32 Auto-OTA Firmware System");
   Serial.println("=================================");
+  Serial.println("Version: " + String(currentFirmwareVersion));
 
   // Set root certificate for GitHub
   client.setCACert(rootCACertificate);
@@ -116,7 +82,7 @@ void loop() {
 void connectToWiFi() {
   if (WiFi.status() == WL_CONNECTED) return;
   
-  Serial.println("Connecting to WiFi: INPT-Test");
+  Serial.println("Connecting to WiFi: " + String(ssid));
   WiFi.begin(ssid, password);
 
   int attempts = 0;
@@ -127,17 +93,16 @@ void connectToWiFi() {
   }
 
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\n✅ WiFi connected to INPT-Test");
+    Serial.println("\n✅ WiFi connected!");
     Serial.println("IP address: " + WiFi.localIP().toString());
   } else {
-    Serial.println("\n❌ WiFi connection failed to INPT-Test");
+    Serial.println("\n❌ WiFi connection failed");
   }
 }
 
 String checkVersionFromGitHub() {
   HTTPClient http;
   
-  // Use regular HTTPClient for version check (simpler)
   http.begin(versionUrl);
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.setTimeout(5000);
@@ -188,31 +153,66 @@ void performOTA(String newVersion) {
   Serial.println("[OTA] Starting firmware update to version: " + newVersion);
   Serial.println("[OTA] Download URL: " + String(firmwareUrl));
 
-  // Use simpler HTTPUpdate method
-  t_httpUpdate_return ret = httpUpdate.update(client, firmwareUrl, currentFirmwareVersion);
+  HTTPClient http;
+  http.begin(client, firmwareUrl);
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  http.setTimeout(30000);
   
-  switch (ret) {
-    case HTTP_UPDATE_FAILED:
-      Serial.printf("[OTA] Update failed. Error (%d): %s\n",
-                    httpUpdate.getLastError(),
-                    httpUpdate.getLastErrorString().c_str());
-      break;
+  int httpCode = http.GET();
+  
+  if (httpCode == HTTP_CODE_OK) {
+    int contentLength = http.getSize();
+    Serial.printf("[OTA] Firmware size: %d bytes\n", contentLength);
+    
+    if (Update.begin(contentLength)) {
+      Serial.println("[OTA] Starting update process...");
       
-    case HTTP_UPDATE_NO_UPDATES:
-      Serial.println("[OTA] No updates available");
-      break;
+      WiFiClient* stream = http.getStreamPtr();
+      uint8_t buffer[256];
+      size_t written = 0;
       
-    case HTTP_UPDATE_OK:
-      Serial.println("[OTA] Update completed successfully");
+      while (http.connected() && (written < contentLength)) {
+        size_t available = stream->available();
+        if (available > 0) {
+          int toRead = min(available, sizeof(buffer));
+          int bytesRead = stream->readBytes(buffer, toRead);
+          
+          if (Update.write(buffer, bytesRead) != bytesRead) {
+            Serial.println("[OTA] ERROR: Write failed");
+            break;
+          }
+          
+          written += bytesRead;
+          
+          // Show progress
+          if (written % 8192 == 0) {
+            Serial.printf("[OTA] Progress: %d/%d bytes\n", written, contentLength);
+          }
+        }
+        delay(1);
+      }
       
-      // Store new version
-      preferences.putString("version", newVersion);
-      preferences.end();
-      
-      Serial.println("[OTA] Firmware updated successfully!");
-      Serial.println("[OTA] Restarting in 3 seconds...");
-      delay(3000);
-      ESP.restart();
-      break;
+      if (Update.end()) {
+        Serial.println("[OTA] Update completed successfully");
+        
+        // Store new version
+        preferences.putString("version", newVersion);
+        preferences.end();
+        
+        Serial.println("[OTA] Firmware updated successfully!");
+        Serial.println("[OTA] Restarting in 3 seconds...");
+        delay(3000);
+        ESP.restart();
+      } else {
+        Serial.print("[OTA] ERROR: Update failed: ");
+        Update.printError(Serial);
+      }
+    } else {
+      Serial.println("[OTA] ERROR: Not enough space for OTA");
+    }
+  } else {
+    Serial.printf("[OTA] ERROR: Download failed (HTTP %d)\n", httpCode);
   }
+  
+  http.end();
 }
