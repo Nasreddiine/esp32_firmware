@@ -13,7 +13,7 @@ const char* password = "iinnpptt";
 // =====================
 // Firmware version - MUST be 1.0.0 for initial release
 // =====================
-const char* currentFirmwareVersion = "1.0.1";
+const char* currentFirmwareVersion = "1.0.2";
 
 // =====================
 // GitHub URLs
@@ -59,8 +59,8 @@ void setup() {
   Serial.println("ESP32 Auto-OTA Firmware System");
   Serial.println("=================================");
   Serial.println("Version: " + String(currentFirmwareVersion));
-  Serial.println("Build Date: " __DATE__ " " __TIME__);  // ADD THIS LINE 1.0.1
-  Serial.println("OTA Test Message: Update to v1.0.2 successful!");  // ADD THIS LINE
+  Serial.println("Build Date: " __DATE__ " " __TIME__);  
+  Serial.println("OTA Test Message: Update to v1.0.3 successful exam!");  
 
   // Set root certificate for GitHub
   client.setCACert(rootCACertificate);
